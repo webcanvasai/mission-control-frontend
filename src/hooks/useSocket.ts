@@ -45,32 +45,25 @@ export function useSocket() {
 
     socket.on('tickets:init', (tickets: Ticket[]) => {
       console.log('Received initial tickets:', tickets.length);
+      // Update all ticket queries (with and without filters)
       queryClient.setQueryData(['tickets'], tickets);
+      queryClient.setQueryData(['tickets', undefined], tickets);
     });
 
     socket.on('ticket:created', (ticket: Ticket) => {
       console.log('Ticket created:', ticket.id);
-      queryClient.setQueryData(['tickets'], (old: Ticket[] | undefined) => {
-        if (!old) return [ticket];
-        return [...old, ticket];
-      });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
     });
 
     socket.on('ticket:updated', (ticket: Ticket) => {
       console.log('Ticket updated:', ticket.id);
-      queryClient.setQueryData(['tickets'], (old: Ticket[] | undefined) => {
-        if (!old) return [ticket];
-        return old.map(t => t.id === ticket.id ? ticket : t);
-      });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
       queryClient.setQueryData(['ticket', ticket.id], ticket);
     });
 
     socket.on('ticket:deleted', (data: { id: string }) => {
       console.log('Ticket deleted:', data.id);
-      queryClient.setQueryData(['tickets'], (old: Ticket[] | undefined) => {
-        if (!old) return [];
-        return old.filter(t => t.id !== data.id);
-      });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
     });
 
     return () => {
