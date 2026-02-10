@@ -52,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to fetch role:', error);
       setRole('viewer');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -78,21 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchRole(session.user.id);
         } else {
           setRole(null);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // When role changes, update loading state
-  useEffect(() => {
-    if (role !== null || user === null) {
-      setLoading(false);
-    }
-  }, [role, user]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
