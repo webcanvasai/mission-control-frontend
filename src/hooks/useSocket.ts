@@ -4,7 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Ticket } from '../types/ticket';
 import { useAuth } from '../contexts/AuthContext';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+// Use relative path (current origin) if WS_URL is not provided
+const WS_URL = import.meta.env.VITE_WS_URL || window.location.origin;
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
