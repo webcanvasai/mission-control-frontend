@@ -38,21 +38,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Fetch user role from user_roles table
   const fetchRole = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      console.log('[AuthContext] Fetching role for user:', userId);
+      
+      // Check if we have a valid session
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      console.log('[AuthContext] Current session:', currentSession ? 'exists' : 'missing');
+      console.log('[AuthContext] Session user:', currentSession?.user?.id);
+      
+      // Try using the RPC function first (bypasses RLS)
+      console.log('[AuthContext] Trying RPC function get_my_role()');
+      const { data: rpcRole, error: rpcError } = await supabase.rpc('get_my_role');
+      
+      if (!rpcError && rpcRole) {
+        console.log('[AuthContext] Got role from RPC:', rpcRole);
+        setRole(rpcRole as UserRole);
+        return;
+      }
+      
+      console.log('[AuthContext] RPC failed, trying direct query. Error:', rpcError);
+      
+      // Fallback to direct query with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout')), 5000)
+      );
+      
+      const queryPromise = supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .single();
+      
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching role:', error);
+      console.log('[AuthContext] Role query result:', { data, error });
+
+      if (error) {
+        console.error('[AuthContext] Error fetching role:', error);
+        // Default to viewer if no role found
+        setRole('viewer');
+      } else {
+        const roleValue = (data?.role as UserRole) || 'viewer';
+        console.log('[AuthContext] Setting role to:', roleValue);
+        setRole(roleValue);
       }
-
-      setRole((data?.role as UserRole) || 'viewer');
     } catch (error) {
-      console.error('Failed to fetch role:', error);
+      console.error('[AuthContext] Failed to fetch role (exception):', error);
       setRole('viewer');
     } finally {
+      console.log('[AuthContext] Setting loading to false');
       setLoading(false);
     }
   };

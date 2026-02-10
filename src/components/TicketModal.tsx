@@ -6,6 +6,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { X, Loader2, Sparkles, Trash2, Eye } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import clsx from 'clsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 
 interface TicketModalProps {
   ticket: Ticket | null;
@@ -194,10 +199,32 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
                 className="w-full bg-gray-700 rounded px-3 py-2 text-sm font-mono min-h-[300px]"
               />
             ) : (
-              <div className="bg-gray-700/30 rounded-lg p-4 prose prose-invert prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap text-sm text-gray-300 font-sans">
-                  {ticket.body}
-                </pre>
+              <div className="bg-gray-700/30 rounded-lg p-4 prose prose-invert prose-sm max-w-none
+                prose-headings:text-gray-100 prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
+                prose-p:text-gray-300 prose-p:my-2
+                prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                prose-strong:text-gray-100 prose-em:text-gray-200
+                prose-code:text-pink-400 prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+                prose-pre:bg-gray-800 prose-pre:border prose-pre:border-gray-700 prose-pre:rounded-lg prose-pre:p-0
+                prose-ul:text-gray-300 prose-ol:text-gray-300 prose-li:my-0.5
+                prose-blockquote:border-l-blue-500 prose-blockquote:text-gray-400 prose-blockquote:bg-gray-800/50 prose-blockquote:py-1 prose-blockquote:px-3 prose-blockquote:rounded-r
+                prose-table:border-collapse prose-th:bg-gray-800 prose-th:px-3 prose-th:py-2 prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-gray-700 prose-th:border prose-th:border-gray-700
+                prose-hr:border-gray-700">
+                {ticket.body ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeSanitize, rehypeHighlight]}
+                    components={{
+                      a: ({ node, ...props }) => (
+                        <a {...props} target="_blank" rel="noopener noreferrer" />
+                      ),
+                    }}
+                  >
+                    {ticket.body}
+                  </ReactMarkdown>
+                ) : (
+                  <p className="text-gray-500 italic">No description provided</p>
+                )}
               </div>
             )}
           </div>
