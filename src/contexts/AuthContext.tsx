@@ -35,54 +35,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user role from user_roles table
+  // Fetch user role from API
   const fetchRole = async (userId: string) => {
     try {
       console.log('[AuthContext] Fetching role for user:', userId);
       
-      // Check if we have a valid session
+      // Get current session token
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       console.log('[AuthContext] Current session:', currentSession ? 'exists' : 'missing');
-      console.log('[AuthContext] Session user:', currentSession?.user?.id);
       
-      // Try using the RPC function first (bypasses RLS)
-      console.log('[AuthContext] Trying RPC function get_my_role()');
-      const { data: rpcRole, error: rpcError } = await supabase.rpc('get_my_role');
-      
-      if (!rpcError && rpcRole) {
-        console.log('[AuthContext] Got role from RPC:', rpcRole);
-        setRole(rpcRole as UserRole);
+      if (!currentSession?.access_token) {
+        console.error('[AuthContext] No access token available');
+        setRole('viewer');
         return;
       }
       
-      console.log('[AuthContext] RPC failed, trying direct query. Error:', rpcError);
+      // Call API to get user info and role (bypasses RLS issues)
+      const API_BASE = import.meta.env.VITE_API_URL || '/api';
+      console.log('[AuthContext] Calling /api/auth/me');
       
-      // Fallback to direct query with timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 5000)
-      );
-      
-      const queryPromise = supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .single();
-      
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      const response = await fetch(`${API_BASE}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-      console.log('[AuthContext] Role query result:', { data, error });
-
-      if (error) {
-        console.error('[AuthContext] Error fetching role:', error);
-        // Default to viewer if no role found
+      if (!response.ok) {
+        console.error('[AuthContext] API error:', response.status, response.statusText);
         setRole('viewer');
-      } else {
-        const roleValue = (data?.role as UserRole) || 'viewer';
-        console.log('[AuthContext] Setting role to:', roleValue);
-        setRole(roleValue);
+        return;
       }
+
+      const data = await response.json();
+      console.log('[AuthContext] Got user data from API:', data);
+      
+      const roleValue = (data.user?.role as UserRole) || 'viewer';
+      console.log('[AuthContext] Setting role to:', roleValue);
+      setRole(roleValue);
     } catch (error) {
-      console.error('[AuthContext] Failed to fetch role (exception):', error);
+      console.error('[AuthContext] Failed to fetch role:', error);
       setRole('viewer');
     } finally {
       console.log('[AuthContext] Setting loading to false');
