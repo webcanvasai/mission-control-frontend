@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import type { Ticket, TicketStatus, Priority } from '../types/ticket';
 import { STATUS_LABELS, PROJECT_COLORS } from '../types/ticket';
 import { useUpdateTicket, useTriggerGrooming, useDeleteTicket } from '../hooks/useTickets';
-import { X, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { X, Loader2, Sparkles, Trash2, Eye } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import clsx from 'clsx';
 
@@ -19,6 +20,7 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
   const updateTicket = useUpdateTicket();
   const triggerGrooming = useTriggerGrooming();
   const deleteTicket = useDeleteTicket();
+  const { canEdit, canDelete } = useAuth();
 
   useEffect(() => {
     if (ticket) {
@@ -102,6 +104,14 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
+          {/* Read-only badge for viewers */}
+          {!canEdit && (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <Eye className="w-4 h-4 text-blue-400" />
+              <span className="text-sm text-blue-400">Read-only mode. You need Editor or Admin role to make changes.</span>
+            </div>
+          )}
+
           {/* Status and Priority */}
           <div className="flex flex-wrap gap-4 mb-4">
             <div>
@@ -109,7 +119,11 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
               <select
                 value={ticket.status}
                 onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
-                className="bg-gray-700 rounded px-3 py-1.5 text-sm"
+                disabled={!canEdit}
+                className={clsx(
+                  "bg-gray-700 rounded px-3 py-1.5 text-sm",
+                  !canEdit && "opacity-60 cursor-not-allowed"
+                )}
               >
                 {Object.entries(STATUS_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
@@ -122,7 +136,11 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
               <select
                 value={ticket.priority}
                 onChange={(e) => handlePriorityChange(e.target.value as Priority)}
-                className="bg-gray-700 rounded px-3 py-1.5 text-sm"
+                disabled={!canEdit}
+                className={clsx(
+                  "bg-gray-700 rounded px-3 py-1.5 text-sm",
+                  !canEdit && "opacity-60 cursor-not-allowed"
+                )}
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -194,52 +212,70 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-700">
           <div className="flex gap-2">
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-            <button
-              onClick={handleGroom}
-              disabled={triggerGrooming.isPending}
-              className="flex items-center gap-1 px-3 py-1.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-sm disabled:opacity-50"
-            >
-              {triggerGrooming.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              Groom
-            </button>
+            {/* Delete - Admin only */}
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            )}
+            
+            {/* Groom - Editor or Admin */}
+            {canEdit && (
+              <button
+                onClick={handleGroom}
+                disabled={triggerGrooming.isPending}
+                className="flex items-center gap-1 px-3 py-1.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-sm disabled:opacity-50"
+              >
+                {triggerGrooming.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                Groom
+              </button>
+            )}
           </div>
 
           <div className="flex gap-2">
-            {isEditing ? (
-              <>
+            {/* Edit buttons - Editor or Admin */}
+            {canEdit && (
+              isEditing ? (
+                <>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={updateTicket.isPending}
+                    className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 transition-colors text-sm disabled:opacity-50"
+                  >
+                    {updateTicket.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => setIsEditing(true)}
                   className="px-4 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
                 >
-                  Cancel
+                  Edit
                 </button>
-                <button
-                  onClick={handleSave}
-                  disabled={updateTicket.isPending}
-                  className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 transition-colors text-sm disabled:opacity-50"
-                >
-                  {updateTicket.isPending ? 'Saving...' : 'Save'}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
-              >
-                Edit
-              </button>
+              )
             )}
+            
+            {/* Close button for everyone */}
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 rounded bg-gray-700 hover:bg-gray-600 transition-colors text-sm"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

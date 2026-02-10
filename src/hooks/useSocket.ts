@@ -2,25 +2,40 @@ import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Ticket } from '../types/ticket';
+import { useAuth } from '../contexts/AuthContext';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
   const queryClient = useQueryClient();
+  const { session } = useAuth();
 
   useEffect(() => {
+    // Don't connect if not authenticated
+    if (!session?.access_token) {
+      console.log('WebSocket: waiting for authentication...');
+      return;
+    }
+
     const socket = io(WS_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 10,
+      auth: {
+        token: session.access_token,
+      },
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('WebSocket connected');
+      console.log('WebSocket connected (authenticated)');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('WebSocket connection error:', error.message);
     });
 
     socket.on('disconnect', () => {
@@ -60,7 +75,7 @@ export function useSocket() {
     return () => {
       socket.disconnect();
     };
-  }, [queryClient]);
+  }, [queryClient, session?.access_token]);
 
   const subscribeToTicket = useCallback((id: string) => {
     socketRef.current?.emit('ticket:subscribe', { id });
