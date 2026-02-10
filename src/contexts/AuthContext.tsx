@@ -40,8 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('[AuthContext] Fetching role for user:', userId);
       
-      // Get current session token
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      // Get current session token with timeout
+      console.log('[AuthContext] Getting session...');
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session fetch timeout')), 3000)
+      );
+      
+      const { data: { session: currentSession } } = await Promise.race([
+        sessionPromise,
+        timeoutPromise
+      ]) as any;
+      
       console.log('[AuthContext] Current session:', currentSession ? 'exists' : 'missing');
       
       if (!currentSession?.access_token) {
@@ -52,17 +62,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Call API to get user info and role (bypasses RLS issues)
       const API_BASE = import.meta.env.VITE_API_URL || '/api';
-      console.log('[AuthContext] Calling /api/auth/me');
+      console.log('[AuthContext] Calling /api/auth/me with token:', currentSession.access_token.substring(0, 20) + '...');
       
-      const response = await fetch(`${API_BASE}/auth/me`, {
+      const fetchPromise = fetch(`${API_BASE}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${currentSession.access_token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      const fetchTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('API fetch timeout')), 5000)
+      );
+      
+      const response = await Promise.race([fetchPromise, fetchTimeout]) as Response;
+      console.log('[AuthContext] API response status:', response.status);
 
       if (!response.ok) {
-        console.error('[AuthContext] API error:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('[AuthContext] API error:', response.status, response.statusText, errorText);
         setRole('viewer');
         return;
       }
