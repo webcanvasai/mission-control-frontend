@@ -34,7 +34,6 @@ export function KanbanBoard({ tickets, onTicketClick }: KanbanBoardProps) {
   const ticketsByStatus = useMemo(() => {
     const grouped: Record<TicketStatus, Ticket[]> = {
       'backlog': [],
-      'groomed': [],
       'todo': [],
       'in-progress': [],
       'done': [],
@@ -49,12 +48,14 @@ export function KanbanBoard({ tickets, onTicketClick }: KanbanBoardProps) {
       }
     });
 
-    // Sort by priority within each lane
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    // Sort by updatedAt descending (most recently updated first)
+    // Falls back to createdAt if updatedAt is missing
     Object.keys(grouped).forEach(status => {
-      grouped[status as TicketStatus].sort((a, b) => 
-        priorityOrder[a.priority] - priorityOrder[b.priority]
-      );
+      grouped[status as TicketStatus].sort((a, b) => {
+        const aTime = new Date(a.updatedAt || a.createdAt).getTime();
+        const bTime = new Date(b.updatedAt || b.createdAt).getTime();
+        return bTime - aTime; // Descending (newest first)
+      });
     });
 
     return grouped;

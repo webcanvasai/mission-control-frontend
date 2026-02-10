@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTickets, updateTicket, createTicket, deleteTicket, triggerGrooming } from '../api/tickets';
+import { fetchTickets, updateTicket, createTicket, deleteTicket, triggerGrooming, moveTicket } from '../api/tickets';
 import type { Ticket, TicketStatus, TicketUpdate } from '../types/ticket';
 
 export function useTickets(filters?: { project?: string }) {
@@ -22,10 +22,13 @@ export function useUpdateTicket() {
       
       const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
       
+      // Optimistic update with new timestamp
       queryClient.setQueryData(['tickets'], (old: Ticket[] | undefined) => {
         if (!old) return old;
         return old.map(ticket =>
-          ticket.id === id ? { ...ticket, ...update } : ticket
+          ticket.id === id 
+            ? { ...ticket, ...update, updatedAt: new Date().toISOString() } 
+            : ticket
         );
       });
 
@@ -43,13 +46,43 @@ export function useUpdateTicket() {
 }
 
 export function useMoveTicket() {
-  const updateTicketMutation = useUpdateTicket();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: ({ id, newStatus }: { id: string; newStatus: TicketStatus }) =>
+      moveTicket(id, newStatus),
+    onMutate: async ({ id, newStatus }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['tickets'] });
+      
+      const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets']);
+      
+      // Optimistic update with new timestamp
+      queryClient.setQueryData(['tickets'], (old: Ticket[] | undefined) => {
+        if (!old) return old;
+        return old.map(ticket =>
+          ticket.id === id 
+            ? { ...ticket, status: newStatus, updatedAt: new Date().toISOString() } 
+            : ticket
+        );
+      });
+
+      return { previousTickets };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (context?.previousTickets) {
+        queryClient.setQueryData(['tickets'], context.previousTickets);
+      }
+    },
+    onSettled: () => {
+      // Refetch to sync with server
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
 
   return (ticketId: string, newStatus: TicketStatus) => {
-    updateTicketMutation.mutate({
-      id: ticketId,
-      update: { status: newStatus },
-    });
+    mutation.mutate({ id: ticketId, newStatus });
   };
 }
 

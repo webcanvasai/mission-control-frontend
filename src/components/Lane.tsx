@@ -13,7 +13,6 @@ interface LaneProps {
 
 const LANE_COLORS: Record<TicketStatus, string> = {
   'backlog': 'border-t-gray-500',
-  'groomed': 'border-t-purple-500',
   'todo': 'border-t-blue-500',
   'in-progress': 'border-t-yellow-500',
   'done': 'border-t-green-500',

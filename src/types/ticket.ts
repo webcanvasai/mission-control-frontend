@@ -1,4 +1,4 @@
-export type TicketStatus = 'backlog' | 'groomed' | 'todo' | 'in-progress' | 'done';
+export type TicketStatus = 'backlog' | 'todo' | 'in-progress' | 'done';
 
 export type Priority = 'low' | 'medium' | 'high';
 
@@ -38,11 +38,10 @@ export interface TicketUpdate {
   body?: string;
 }
 
-export const STATUS_ORDER: TicketStatus[] = ['backlog', 'groomed', 'todo', 'in-progress', 'done'];
+export const STATUS_ORDER: TicketStatus[] = ['backlog', 'todo', 'in-progress', 'done'];
 
 export const STATUS_LABELS: Record<TicketStatus, string> = {
   'backlog': 'Backlog',
-  'groomed': 'Groomed',
   'todo': 'To Do',
   'in-progress': 'In Progress',
   'done': 'Done',

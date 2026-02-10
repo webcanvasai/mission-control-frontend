@@ -71,3 +71,13 @@ export async function triggerGrooming(id: string): Promise<Ticket> {
   const data = await handleResponse<{ ticket: Ticket }>(response);
   return data.ticket;
 }
+
+export async function moveTicket(id: string, newStatus: string): Promise<Ticket> {
+  const response = await fetch(`${API_BASE}/tickets/${id}/move`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newStatus }),
+  });
+  const data = await handleResponse<{ success: boolean; ticket: Ticket }>(response);
+  return data.ticket;
+}
