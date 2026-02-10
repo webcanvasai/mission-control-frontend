@@ -54,7 +54,7 @@ export function Header() {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-sm text-white font-medium truncate max-w-[150px]">
-                  {user.email}
+                  {user.user_metadata?.display_name || user.email}
                 </p>
                 {role && (
                   <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${ROLE_COLORS[role]}`}>

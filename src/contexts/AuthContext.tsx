@@ -11,7 +11,7 @@ interface AuthContextType {
   role: UserRole | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   canEdit: boolean;
   canDelete: boolean;

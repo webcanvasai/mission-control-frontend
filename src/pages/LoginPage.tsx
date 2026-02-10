@@ -7,6 +7,7 @@ import { Rocket, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export function LoginPage() {
 
     try {
       if (isSignup) {
-        const { error } = await signUp(email, password);
+        const { error } = await signUp(email, password, displayName);
         if (error) {
           setError(error.message);
         } else {
@@ -85,6 +86,25 @@ export function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Display Name (signup only) */}
+            {isSignup && (
+              <div>
+                <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
+                  Display Name
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your Name"
+                  required
+                  autoComplete="name"
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+            )}
+
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
