@@ -3,7 +3,7 @@ import type { Ticket, TicketStatus, Priority } from '../types/ticket';
 import { STATUS_LABELS, PROJECT_COLORS } from '../types/ticket';
 import { useUpdateTicket, useTriggerGrooming, useDeleteTicket } from '../hooks/useTickets';
 import { useAuth } from '../contexts/AuthContext';
-import { X, Loader2, Sparkles, Trash2, Eye } from 'lucide-react';
+import { X, Loader2, Sparkles, Trash2, Eye, Lock } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -21,11 +21,11 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [editedBody, setEditedBody] = useState('');
-  
+
   const updateTicket = useUpdateTicket();
   const triggerGrooming = useTriggerGrooming();
   const deleteTicket = useDeleteTicket();
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, canEditProject, canDeleteInProject, getProjectRole } = useAuth();
 
   useEffect(() => {
     if (ticket) {
@@ -36,16 +36,27 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
 
   if (!ticket) return null;
 
+  const projectName = ticket.project || 'Uncategorized';
+  const projectRole = getProjectRole(projectName);
+
+  // Check both global role and project-based permissions
+  const canEditThisTicket = canEdit && canEditProject(projectName);
+  const canDeleteThisTicket = canDelete || canDeleteInProject(projectName);
+  const isReadOnly = !canEditThisTicket;
+
   const handleSave = () => {
-    updateTicket.mutate({
-      id: ticket.id,
-      update: {
-        title: editedTitle,
-        body: editedBody,
+    updateTicket.mutate(
+      {
+        id: ticket.id,
+        update: {
+          title: editedTitle,
+          body: editedBody,
+        },
       },
-    }, {
-      onSuccess: () => setIsEditing(false),
-    });
+      {
+        onSuccess: () => setIsEditing(false),
+      }
+    );
   };
 
   const handleStatusChange = (status: TicketStatus) => {
@@ -68,6 +79,19 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
     }
   };
 
+  const getReadOnlyMessage = () => {
+    if (!canEdit) {
+      return 'You need Editor or Admin role to make changes.';
+    }
+    if (projectRole === 'viewer') {
+      return `You have Viewer access to ${projectName}. Member role is required to edit.`;
+    }
+    if (!projectRole) {
+      return `You don't have access to ${projectName}.`;
+    }
+    return 'Read-only mode.';
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -76,12 +100,21 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-sm font-mono text-gray-400">{ticket.id}</span>
-              <span className={clsx(
-                'text-xs px-2 py-0.5 rounded',
-                PROJECT_COLORS[ticket.project] || 'bg-gray-600'
-              )}>
+              <span
+                className={clsx(
+                  'text-xs px-2 py-0.5 rounded',
+                  PROJECT_COLORS[ticket.project] || 'bg-gray-600'
+                )}
+              >
                 {ticket.project}
               </span>
+              {projectRole && (
+                <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">
+                  {projectRole === 'admin'
+                    ? 'Admin'
+                    : projectRole.charAt(0).toUpperCase() + projectRole.slice(1)}
+                </span>
+              )}
               {ticket.estimate && (
                 <span className="text-xs bg-gray-700 px-2 py-0.5 rounded">
                   {ticket.estimate} points
@@ -110,10 +143,14 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {/* Read-only badge for viewers */}
-          {!canEdit && (
+          {isReadOnly && (
             <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <Eye className="w-4 h-4 text-blue-400" />
-              <span className="text-sm text-blue-400">Read-only mode. You need Editor or Admin role to make changes.</span>
+              {projectRole === 'viewer' ? (
+                <Eye className="w-4 h-4 text-blue-400" />
+              ) : (
+                <Lock className="w-4 h-4 text-blue-400" />
+              )}
+              <span className="text-sm text-blue-400">{getReadOnlyMessage()}</span>
             </div>
           )}
 
@@ -124,27 +161,29 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
               <select
                 value={ticket.status}
                 onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
-                disabled={!canEdit}
+                disabled={isReadOnly}
                 className={clsx(
-                  "bg-gray-700 rounded px-3 py-1.5 text-sm",
-                  !canEdit && "opacity-60 cursor-not-allowed"
+                  'bg-gray-700 rounded px-3 py-1.5 text-sm',
+                  isReadOnly && 'opacity-60 cursor-not-allowed'
                 )}
               >
                 {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="text-xs text-gray-400 block mb-1">Priority</label>
               <select
                 value={ticket.priority}
                 onChange={(e) => handlePriorityChange(e.target.value as Priority)}
-                disabled={!canEdit}
+                disabled={isReadOnly}
                 className={clsx(
-                  "bg-gray-700 rounded px-3 py-1.5 text-sm",
-                  !canEdit && "opacity-60 cursor-not-allowed"
+                  'bg-gray-700 rounded px-3 py-1.5 text-sm',
+                  isReadOnly && 'opacity-60 cursor-not-allowed'
                 )}
               >
                 <option value="low">Low</option>
@@ -169,14 +208,16 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
             <div className="bg-gray-700/50 rounded-lg p-3 mb-4">
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-gray-400">Grooming:</span>
-                <span className={clsx(
-                  'px-2 py-0.5 rounded text-xs font-medium',
-                  ticket.grooming.status === 'complete' && 'bg-green-500/20 text-green-400',
-                  ticket.grooming.status === 'in-progress' && 'bg-blue-500/20 text-blue-400',
-                  ticket.grooming.status === 'pending' && 'bg-yellow-500/20 text-yellow-400',
-                  ticket.grooming.status === 'failed' && 'bg-red-500/20 text-red-400',
-                  ticket.grooming.status === 'manual' && 'bg-purple-500/20 text-purple-400',
-                )}>
+                <span
+                  className={clsx(
+                    'px-2 py-0.5 rounded text-xs font-medium',
+                    ticket.grooming.status === 'complete' && 'bg-green-500/20 text-green-400',
+                    ticket.grooming.status === 'in-progress' && 'bg-blue-500/20 text-blue-400',
+                    ticket.grooming.status === 'pending' && 'bg-yellow-500/20 text-yellow-400',
+                    ticket.grooming.status === 'failed' && 'bg-red-500/20 text-red-400',
+                    ticket.grooming.status === 'manual' && 'bg-purple-500/20 text-purple-400'
+                  )}
+                >
                   {ticket.grooming.status}
                 </span>
                 {ticket.grooming.status === 'in-progress' && (
@@ -199,7 +240,8 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
                 className="w-full bg-gray-700 rounded px-3 py-2 text-sm font-mono min-h-[300px]"
               />
             ) : (
-              <div className="bg-gray-700/30 rounded-lg p-4 prose prose-invert prose-sm max-w-none
+              <div
+                className="bg-gray-700/30 rounded-lg p-4 prose prose-invert prose-sm max-w-none
                 prose-headings:text-gray-100 prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
                 prose-p:text-gray-300 prose-p:my-2
                 prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
@@ -209,7 +251,8 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
                 prose-ul:text-gray-300 prose-ol:text-gray-300 prose-li:my-0.5
                 prose-blockquote:border-l-blue-500 prose-blockquote:text-gray-400 prose-blockquote:bg-gray-800/50 prose-blockquote:py-1 prose-blockquote:px-3 prose-blockquote:rounded-r
                 prose-table:border-collapse prose-th:bg-gray-800 prose-th:px-3 prose-th:py-2 prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-gray-700 prose-th:border prose-th:border-gray-700
-                prose-hr:border-gray-700">
+                prose-hr:border-gray-700"
+              >
                 {ticket.body ? (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
@@ -232,15 +275,17 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
           {/* Timestamps */}
           <div className="text-xs text-gray-500 space-y-1">
             <p>Created: {format(new Date(ticket.createdAt), 'PPP p')}</p>
-            <p>Updated: {formatDistanceToNow(new Date(ticket.updatedAt), { addSuffix: true })}</p>
+            <p>
+              Updated: {formatDistanceToNow(new Date(ticket.updatedAt), { addSuffix: true })}
+            </p>
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-700">
           <div className="flex gap-2">
-            {/* Delete - Admin only */}
-            {canDelete && (
+            {/* Delete - Project owner or admin */}
+            {canDeleteThisTicket && (
               <button
                 onClick={handleDelete}
                 className="flex items-center gap-1 px-3 py-1.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm"
@@ -249,9 +294,9 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
                 Delete
               </button>
             )}
-            
-            {/* Groom - Editor or Admin */}
-            {canEdit && (
+
+            {/* Groom - Project member or higher */}
+            {canEditThisTicket && (
               <button
                 onClick={handleGroom}
                 disabled={triggerGrooming.isPending}
@@ -268,9 +313,9 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
           </div>
 
           <div className="flex gap-2">
-            {/* Edit buttons - Editor or Admin */}
-            {canEdit && (
-              isEditing ? (
+            {/* Edit buttons - Project member or higher */}
+            {canEditThisTicket &&
+              (isEditing ? (
                 <>
                   <button
                     onClick={() => setIsEditing(false)}
@@ -293,9 +338,8 @@ export function TicketModal({ ticket, onClose }: TicketModalProps) {
                 >
                   Edit
                 </button>
-              )
-            )}
-            
+              ))}
+
             {/* Close button for everyone */}
             <button
               onClick={onClose}

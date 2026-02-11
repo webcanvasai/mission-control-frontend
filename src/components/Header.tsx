@@ -1,4 +1,4 @@
-import { Rocket, RefreshCw, LogOut, Shield, Edit3, Eye } from 'lucide-react';
+import { Rocket, RefreshCw, LogOut, Shield, Edit3, Eye, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../contexts/AuthContext';
@@ -21,9 +21,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
   viewer: 'Viewer',
 };
 
-export function Header() {
+interface HeaderProps {
+  currentProject?: string | null;
+  onManageMembers?: () => void;
+}
+
+export function Header({ currentProject, onManageMembers }: HeaderProps) {
   const queryClient = useQueryClient();
-  const { user, role, signOut } = useAuth();
+  const { user, role, signOut, canManageProject, projects } = useAuth();
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -35,6 +40,10 @@ export function Header() {
 
   const RoleIcon = role ? ROLE_ICONS[role] : Eye;
 
+  // Check if user can manage the current project
+  const showManageMembers =
+    currentProject && canManageProject(currentProject) && onManageMembers;
+
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between">
@@ -44,10 +53,14 @@ export function Header() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Mission Control</h1>
-            <p className="text-xs text-gray-400">Ticket Management Dashboard</p>
+            <p className="text-xs text-gray-400">
+              {projects.length > 0
+                ? `${projects.length} project${projects.length !== 1 ? 's' : ''}`
+                : 'Ticket Management Dashboard'}
+            </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           {/* User Info */}
           {user && (
@@ -57,13 +70,27 @@ export function Header() {
                   {user.user_metadata?.display_name || user.email}
                 </p>
                 {role && (
-                  <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${ROLE_COLORS[role]}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${ROLE_COLORS[role]}`}
+                  >
                     <RoleIcon className="w-3 h-3" />
                     {ROLE_LABELS[role]}
                   </span>
                 )}
               </div>
             </div>
+          )}
+
+          {/* Manage Project Members Button */}
+          {showManageMembers && (
+            <button
+              onClick={onManageMembers}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors text-white text-sm"
+              title={`Manage ${currentProject} members`}
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Members</span>
+            </button>
           )}
 
           {/* Refresh Button */}
